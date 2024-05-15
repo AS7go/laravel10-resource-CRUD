@@ -1,0 +1,1010 @@
+Первоисточник
+Laravel. Лучшая фишка - Resource Controllers
+https://www.youtube.com/watch?v=TpVUDmUyAFs&list=PLze7bMjv1CYuFDzbuKwSqo9ZfdiScyYX7&index=6
+
+=== Дополнительно - очистка от старых проектов Docker ===
+++++++++++++++++++++++++++++++++
+	ЭФФЕКТИВНО УДАЛЯЕТ мусор от образов и образы, если забивается винт и кэш
+	 
+	посмотреть статистику
+docker system df
+
+	1.Очистка неиспользуемых образов:
+docker image prune -a
+
+	2.Очистка неиспользуемых контейнеров:
+docker container prune
+
+	3.Очистка неиспользуемых томов (локальных томов данных):
+docker volume prune
+
+	4.Очистка кэша сборки:
+docker builder prune
+
+	посмотреть статистику
+docker system df
+===================================================================
+===================================================================
+
+============ v2 laravel10-resource-CRUD ==================
+
+1.
+  ~$ 
+cd projects/
+
+  ~/projects$ 
+mkdir laravel10-resource-CRUD
+
+  ~/projects$
+cd laravel10-resource-CRUD/
+
+  ~/projects/laravel10-resource-CRUD$ 
+composer create-project laravel/laravel:^10.0 laravel10
+
+2.
+cd laravel10/
+
+3.
+php artisan serve
+
+   INFO  Server running on [http://127.0.0.1:8000].  
+
+  Press Ctrl+C to stop the server
+
+
+4.
+Вводим в терминале команду hostname получаем свой хост (у меня это E7240) 
+/laravel10$ hostname
+E7240
+
+5.
+--------------
+в настройках .env вводим данные по базе с файла docker-compose.yml
+--- .env
+DB_CONNECTION=mysql
+DB_HOST=mysqldb # <- контейнер с БД(База Данных)
+# DB_HOST=E7240 # <-это для запуска миграций в контейнере, E7240-хост компьютера 
+DB_PORT=3306
+DB_DATABASE=ale4
+DB_USERNAME=root
+DB_PASSWORD=secret	
+
+6. 
+создаем файл laravel.log
+в папке laravel10/storage/logs/laravel.log
+
+7.
+
+
+8.
+
+
+9.
+	переход с подкаталога в каталог командой (cd ..)
+~/projects/laravel10-resource-CRUD/laravel10$ cd ..
+~/projects/laravel10-resource-CRUD$ 
+---
+
+
+В каталоге ~/projects/laravel10-resource-CRUD/
+Создаем файлы --- docker-compose.yml и Dockerfile
+
+--- строки комментируем, иначе ошибка с БД на этапе создания контейнера с БД
+      # MYSQL_USER: root 
+  	  # MYSQL_PASSWORD: secret 
+
+--- Файл docker-compose.yml
+
+version: '3.9'
+services:
+  webserver:
+    container_name: PHP1
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./laravel10:/var/www/html
+    ports:
+      - 8000:80
+    depends_on:
+      - mysqldb
+
+  mysqldb:
+    container_name: mysql1
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: ale4
+      # MYSQL_USER: root
+      # MYSQL_PASSWORD: secret
+    volumes:
+      - ./laravel10/mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  phpmyadmin:
+    container_name: phpmyadmin1
+    image: phpmyadmin/phpmyadmin
+    depends_on:
+      - mysqldb
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysqldb
+      MYSQL_ROOT_PASSWORD: secret
+
+--- Файл Dockerfile
+
+# Использовать официальный образ PHP с предустановленным Apache
+FROM php:8.2-apache
+
+# Обновление пакетного менеджера и установка MySQL клиента
+RUN apt-get update && apt-get install -y default-mysql-client
+
+# Установить PDO и PDO MySQL расширения PHP
+RUN docker-php-ext-install pdo pdo_mysql \
+    && docker-php-ext-enable pdo_mysql
+
+# Включить модули Apache
+RUN a2enmod rewrite
+
+# Установить рабочий каталог в /var/www/html
+WORKDIR /var/www/html
+
+# Скопировать каталог вашего проекта Laravel # Копирует все содержимое текущего каталога
+COPY ../laravel10 . 
+
+# Установить Composer (если еще не установлен)
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Установить зависимости проекта На локальном установит и перенесет в контейнер
+# RUN composer install -это ненужно  
+
+# Настроить разрешения для каталогов storage и bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Открыть порт (при необходимости изменить)
+EXPOSE 80
+
+# Использовать Apache в качестве точки входа по умолчанию
+CMD ["apache2-foreground"]
+
+
+10.
+	переход в подкаталог с именем (laravel10) командой (cd laravel10/)
+~/projects/laravel10-resource-CRUD$ cd laravel10/
+~/projects/laravel10-resource-CRUD/laravel10$ 
+---
+
+	Даем разрешения и права доступа на папки и файлы рекурсивно
+sudo chmod 777 -R storage/
+	на запрос - вводим пароль
+sudo chmod 777 -R bootstrap/cache
+ 
+11. 
+--- +++ 
+	командой создаем и запускаем контейнеры в фоновом режиме -d 
+docker-compose up --build -d
+
+		дополнительно - обычный запуск 
+	docker-compose up -d
+		останов
+	docker-compose down
+---
+
+12. 
+	Даем права доступа папке mysql-data и файлам по пути laravel10/mysql-data
+sudo chmod -R 777 mysql-data
+
+15.
+------------------------------------------------
+	После запуска контейнера доступ к сайту по адресу
+http://localhost:8000/public/	
+	будет работать,	а для настройки адреса
+http://localhost:8000
+	нужно создаем файл .htaccess в ~/projects/laravel10-resource-CRUD/laravel10/
+-----
+# run laravel/public/index.php
+
+<IfModule mod_rewrite.c>
+    Options -MultiViews
+    RewriteEngine On
+    RewriteCond %{REQUEST_URL} !^/public/
+    RewriteRule ^(.*)$ /public/$1 [L,QSA]
+</IfModule>
+
+# run laravel/index.php
+
+# RewriteEngine On
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteRule ^(.*)$ index.php [QSA,L]
+	
+-------------------------------------------
+===============================================================================================================
+!!! ЭТО ДЕЛАТЬ НЕ ОБЯЗАТЕЛЬНО
+если нужно проверить создание таблицы, подключение, запись и чтение БД
+меняем файл в папке laravel10/.htaccess так
+---
+
+# run laravel/public/index.php
+
+# <IfModule mod_rewrite.c>
+#     Options -MultiViews
+#     RewriteEngine On
+#     RewriteCond %{REQUEST_URL} !^/public/
+#     RewriteRule ^(.*)$ /public/$1 [L,QSA]
+# </IfModule>
+
+# run laravel/index.php
+
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+--- 
+
+это позволит запускать index.php с корня laravel10 по 
+http://localhost:8000
+
+создаем файл index.php в корне laravel10 
+laravel10/index.php
+
+=== Файл index.php !!! только для проверки связи создания записи удаления таблицы в БД ===++++++++++++++++++++
+--- После тестирования удаляем таблицу из БД пунктом меню - Удалить таблицу или SQL запросом ниже
+
+<?php
+// Этот файл для теста связи с базой данных, записи и чтения !!! создаст таблицу testuser
+// SQL запрос на полное удаление таблицы 'testuser' с базы данных 'ale4'
+// DROP TABLE `ale4`.`testuser`;
+// Заход в БД http://localhost:8081
+// Пользователь: root
+// Пароль: secret
+
+$host = 'mysqldb'; // Используем имя сервиса контейнера MySQL из docker-compose.yml
+$db = 'ale4'; // Указываем имя базы данных
+$user = 'root';
+$pass = 'secret';
+$table = 'testuser';
+
+echo "!!! Проверка-тест связи с Базой Данных (http://localhost:8081)<br>Пользователь: root <br> Пароль: secret<br>";
+echo 'Ссылка на БД в контейнере Docker -> <a href="http://localhost:8081">phpMyAdmin</a><br><br>';
+echo "Если нет ошибки, то есть соединение с БД -> $db<br>";
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    echo 'Ошибка соединения с БД ' . $e->getMessage();
+    die();
+}
+
+// Запрос для создания таблицы и заполнение
+$queryCreateTable = "
+SET NAMES utf8;
+SET time_zone = '+02:00';
+SET foreign_key_checks = 0;
+SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
+
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `$table` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `flag` int DEFAULT '0',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `$table` (`name`, `email`, `flag`) VALUES
+('name1', 'name1@gmail.com', 1),
+('name2', 'name2@gmail.com', 1),
+('name3', 'name3@gmail.com', 1);
+";
+
+// Функция для выполнения запроса
+function executeQuery($pdo, $query, $successMessage) {
+    try {
+        $pdo->exec($query);
+        echo $successMessage;
+    } catch (PDOException $e) {
+        echo 'Ошибка при выполнении запроса: ' . $e->getMessage();
+    }
+}
+
+// Создание таблицы
+echo '<a href="?action=create_table">Создать тестовую таблицу, заполнить, показать данные</a><br>';
+
+// Показать содержимое таблицы
+echo '<a href="?action=show_table">Показать содержимое таблицы</a><br>';
+
+// Удаление таблицы
+echo '<a href="?action=delete_table">Удалить таблицу</a><br>';
+
+// Обработка действий
+if (isset($_GET['action'])) {
+    switch ($_GET['action']) {
+        case 'create_table':
+            executeQuery($pdo, $queryCreateTable, "<br>Таблица -> $table успешно создана и заполнена данными.<br><br>");
+            // break; //закомментировано<-что бы сразу создать и показывать, но показывать - можно вызывать отдельно, от создать
+        case 'show_table':   
+            $queryShowTable = "SELECT id, name, email FROM $table";
+            $stmt = $pdo->query($queryShowTable);
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                echo $row['name'] . ' - ' . $row['email'] . '<br>';
+            }
+            break;
+        case 'delete_table':
+            $queryDeleteTable = "DROP TABLE `$table`";
+            executeQuery($pdo, $queryDeleteTable, "Таблица -> $table успешно удалена.<br>");
+            break;
+        default:
+            echo 'Неверное действие';
+    }
+
+}
+?>
+
+==============================+++++++++++++++
+
+----- SQL запрос на полное удаление таблицы testuser с базы данных ale4
+DROP TABLE `ale4`.`testuser`;
+-----
+
+после проверки подключения к БД(база данных)
+не забыть поменять файл laravel10/.htaccess как было изначально с перенаправлением на 
+# run laravel/public/index.php
+
+<IfModule mod_rewrite.c>
+    Options -MultiViews
+    RewriteEngine On
+    RewriteCond %{REQUEST_URL} !^/public/
+    RewriteRule ^(.*)$ /public/$1 [L,QSA]
+</IfModule>
+
+# run laravel/index.php
+
+# RewriteEngine On
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteRule ^(.*)$ index.php [QSA,L]
+
+===============================================================================================================
+-------------------------------------------
+
+16.
+	создать символическую ссылку для доступа к папке storage
+php artisan storage:link 
+
+
+17.
+	Для локального компьютера с используете Laravel и Apache, рекомендуется установить разрешения для каталогов mysql-data, storage и bootstrap/cache
+	мы сделали так (aleksandr:www-data) второй вариант пока не используем !!!(www-data:www-data)
+sudo chown -R aleksandr:www-data mysql-data
+sudo chown -R aleksandr:www-data storage
+sudo chown -R aleksandr:www-data bootstrap/cache
+	а в Dockerfile задаем так
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+	получить данные о владельце, группе командой: ls -l имя_файла_каталога
+	пример в контейнере
+
+  Вход в контейнер
+docker exec -it PHP1 bash
+
+root@fe6254ce3613:/var/www/html# ls -l storage
+total 12
+drwxrwxrwx 3 1000 www-data 4096 Feb 13 02:23 app
+drwxrwxrwx 6 1000 www-data 4096 Feb 13 02:23 framework
+drwxrwxrwx 2 1000 www-data 4096 May 14 19:27 logs
+root@fe6254ce3613:/var/www/html# 
+
+exit
+
+	пример на локальном
+~/projects/laravel10-resource-CRUD/laravel10$ ls -l storage
+итого 12
+drwxrwxrwx 3 aleksandr www-data 4096 фев 13 04:23 app
+drwxrwxrwx 6 aleksandr www-data 4096 фев 13 04:23 framework
+drwxrwxrwx 2 aleksandr www-data 4096 мая 14 22:27 logs
+
+18. Вход в контейнер, если понадобится +++
+
+docker exec -it PHP1 bash
+	установка файл-менеджера(для просмотра файлов) в контейнер, не обязательно
+root@e02504415425:/var/www/html# apt install mc
+	запуск менеджера файлов
+mc 
+
+19. 
+Доподготовка настройка контейнеров, конфигурации, связь с SQL. ↑
+==================================================================================
+↑↑↑↑↑ https://laravel.com/docs/9.x/controllers#resource-controllers ↓↓↓↓↓
+==================================================================================
+Сам проект Laravel. Лучшая фишка - Resource Controllers ↓
+
+20.
+  создаем папку layouts
+laravel10/resources/views/layouts/
+
+  создаем файл 
+main.blade.php 
+  в папке 
+  laravel10/resources/views/layouts/main.blade.php
+
+21. 
+  создаем папку posts
+laravel10/resources/views/posts
+
+  создаем файл index.blade.php
+laravel10/resources/views/posts/index.blade.php
+
+22. 
+
+cd ..
+Все с гитом делаем в каталоге ~/projects/laravel10-resource-CRUD$
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+=======================================================================
+	подключение git
+	/projects/laravel10-resource-CRUD$ 
+git init
+git status
+	Текущая ветка: master
+	переименовать master в main
+git branch -m master main
+git status
+	выдаст Текущая ветка: main
+	
+	вводим свои настройки
+git config user.email "sh17aleksandr@gmail.com"
+git config user.name "Aleksandr" 
+
+	в laravel10/.gitignore 
+	добавляем папку 
+/mysql-data
+	
+git add .
+git commit -m "first commit"
+git branch -M main
+
+
++++ создаем репозиторий на гите laravel10-resource-CRUD
+	запускаем это 
+git remote add origin git@github.com:AS7go/laravel10-resource-CRUD.git
+git push -u origin main
+
+=======================================================================
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+23.
+  в каталоге /laravel10-resource-CRUD$ делаем операции с GIT, 
+  а в каталоге /laravel10-resource-CRUD/laravel10 делаем операции с проектом, 
+  т.к. файлы контейнеризации находятся в ~/projects/laravel10-resource-CRUD$
+  
+  заходим в каталог проекта и делаем все кроме GIT (/laravel10-resource-CRUD)
+cd laravel10/
+  ~/projects/laravel10-resource-CRUD/laravel10$
+
+!!!DB_HOST=E7240 - это мой хост локального компьютера, у Вас другой DB_HOST=<ваш хост> php artisan migrate
+узнать хост командой hostname
+~/projects/laravel10-resource-CRUD/laravel10$ hostname
+E7240  
+
+!!! Делается это DB_HOST=<ваш хост> php artisan migrate, если хост контейнера и локального компьютера не совпадают и миграция выдает ошибку. 
+------
+
+	+++ Это переопределит значение DB_HOST только для текущей сессии выполнения команды php artisan migrate, 
+  не затрагивая другие процессы или переменные окружения (без необходимости захода в контейнер или переопределения в .env хоста ).
+DB_HOST=E7240 php artisan migrate
+
+!!! Если выдаст такую ошибку 
+SQLSTATE[HY000] [2006] MySQL server has gone away (Connection: mysql, SQL: create table `migrations` (`id` int unsigned not null auto_increment primary key, `migration` varchar(255) not null, `batch` int not null) default character set utf8mb4 collate 'utf8mb4_unicode_ci')
+то проверит запущен ли контейнер mysql1 (a6c03254bc63)
+
+24.
+  Создаем модель и миграции (но запускать миграции нужно будет через DB_HOST=E7240 php artisan migrate)
+php artisan make:model Post -m
+
+создаст
+	laravel10/app/Models/Post.php
+	laravel10/database/migrations/2024_05_14_204820_create_posts_table.php
+
+25.
+  Заходим в
+laravel10/database/migrations/2024_05_14_204820_create_posts_table.php
+
+  Добавляем
+    public function up(): void
+    {
+        Schema::create('posts', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('text');
+            $table->timestamps();
+        });
+    }  
+
+26.
+  в моем случае миграция, статус, проверка БД, делается (в контейнере) так
+DB_HOST=E7240 php artisan migrate:status
+
+DB_HOST=E7240 php artisan migrate
+
+создалась таблица posts
+
+проверить можно 
+http://localhost:8081/
+Пользователь: root
+Пароль: secret
+
+27.
+php artisan make:controller PostController --resource --model=Post
+
+   INFO  Controller [app/Http/Controllers/PostController.php] created successfully.
+
+28. 
+Каждый метод в контроллере PostController отвечает за выполнение определенного действия при работе с ресурсом "пост" (post) в вашем приложении. Вот краткое описание каждого метода:
+---
+index(): Этот метод отображает список всех постов. Обычно используется для отображения страницы со списком постов.
+---
+create(): Этот метод отображает форму для создания нового поста. Обычно используется для отображения страницы с формой создания поста.
+---
+store(Request $request): Этот метод сохраняет новый пост в базе данных. Он получает данные из отправленной формы создания поста ($request) и сохраняет их в базе данных.
+---
+show(Post $post): Этот метод отображает отдельный пост. Он получает объект поста ($post) и отображает его на странице.
+---
+edit(Post $post): Этот метод отображает форму для редактирования существующего поста. Он получает объект редактируемого поста ($post) и отображает его данные в форме редактирования.
+---
+update(Request $request, Post $post): Этот метод обновляет существующий пост в базе данных. Он получает данные из отправленной формы редактирования поста ($request) и обновляет соответствующий пост в базе данных.
+---
+destroy(Post $post): Этот метод удаляет существующий пост из базы данных. Он получает объект удаляемого поста ($post) и удаляет его из базы данных.
+---
+Эти методы используются вместе с ресурсными маршрутами для обеспечения стандартного набора операций CRUD (Create, Read, Update, Delete) для ресурса "пост".
+
+29.
++++ Laravel-resource-controller-> https://laravel.com/docs/9.x/controllers#resource-controllers
++++ ссылки на форму https://getbootstrap.com/docs/4.6/components/forms/
++++ кнопки https://getbootstrap.com/docs/4.6/components/buttons/
++++ таблички https://getbootstrap.com/docs/4.6/content/tables/ 
+
+Пример без валидации!(самостоятельно)
+Не забываем ставить защиту  @csrf
+
+@extends('layouts.main')
+
+@section('content')
+        <h2>Add new post (файл create.blade.php)</h2>
+        {{-- posts-берется из роута Route::resource('posts', PostController::class); --}}
+        {{-- store-метод, который берется из контроллера PostController --}}
+        <form method="POST" action="{{route('posts.store')}}">
+            @csrf
+            <div class="form-group">
+                <input type="name" class="form-control" id="exampleInputEmail1" aria-describedby="Post title">
+            </div>
+            <div class="form-group">
+                <textarea name="text" id="" cols="30" rows="10"></textarea>
+            </div>
+            <button type="submit" class="btn btn-outline-primary">Submit</button>
+        </form>
+@endsection
+
+30.
+
+если (при добавлении поста) выдаст ошибку
+Add [_token] to fillable property to allow mass assignment on [App\Models\Post].
+
+добавте в файл laravel10/app/Models/Post.php
+строку protected $guarded = []; что бы можно было записывать все поля
+
+class Post extends Model
+{
+    use HasFactory;
+
+    protected $guarded = [];
+}
+
+----
+если ошибка 
+SQLSTATE[HY000]: General error: 1364 Field 'name' doesn't have a default value
+INSERT INTO `posts` (`text`, `updated_at`, `created_at`) VALUES (text 1, 2024-05-15 12:06:49, 2024-05-15 12:06:49)
+
+строка в файле laravel10/resources/views/posts/create.blade.php должна быть набрана так 
+ 
+<input type="text" name="name" class="form-control" id="exampleInputEmail1" aria-describedby="Post title">
+
+31.
+Если конфигурация контейнера и .env как описанно выше, то добавленный пост можно посмотреть так
+ 
+http://localhost:8081/
+root
+secert
+
+32.
+laravel10/app/Http/Controllers/PostController.php
+Объяснение что делает метод
+
+public function index()
+    {
+        $posts = Post::orderBy('created_at','desc')->get();
+
+        return view('posts.index', compact(['posts']));
+    }
+
+---
+Этот метод index() в контроллере PostController отвечает за отображение списка всех постов. Давайте рассмотрим, что происходит в этом методе:
+
+1) Post::orderBy('created_at','desc')->get(): Эта строка выполняет запрос к базе данных для извлечения всех постов (Post) и упорядочивает их по полю created_at в порядке убывания (desc). Это означает, что новые посты будут отображаться первыми. Метод get() возвращает коллекцию всех найденных постов.
+
+2) return view('posts.index', compact(['posts']));: Здесь создается представление (view) для отображения списка постов. Метод view() создает экземпляр представления и передает в него данные для отображения. В данном случае, метод compact(['posts']) создает ассоциативный массив, содержащий переменную $posts, которая содержит коллекцию всех постов. Затем этот массив передается в представление с именем 'posts.index'.
+
+Таким образом, когда пользователь запрашивает страницу со списком постов, вызывается метод index() контроллера PostController, который извлекает все посты из базы данных и передает их в представление для отображения.
+33.
+laravel10/resources/views/posts/index.blade.php
+Объяснение строки <td><a href="{{route('posts.show', $post->id}}">{{$post->name}}</a></td>
+
+Эта строка создает гиперссылку, которая при нажатии перенаправляет пользователя на страницу отображения конкретного поста ($post->id). Путь, на который происходит перенаправление, генерируется с помощью функции Laravel route() с именем маршрута 'posts.show'. Этот маршрут ассоциирован с методом show() в контроллере постов (PostController). Таким образом, при нажатии на ссылку вызывается метод show() в контроллере PostController, который возвращает представление, отображающее содержимое выбранного поста.
+
+33.
+Действия, обрабатываемые контроллером ресурсов
+
+Verb       URI                    Action   Route Name
+-------------------------------------------------------
+GET        /photos                index    photos.index
+GET        /photos/create         create   photos.create
+POST       /photos                store    photos.store
+GET        /photos/{photo}        show     photos.show
+GET        /photos/{photo}/edit   edit     photos.edit
+PUT/PATCH  /photos/{photo}        update   photos.update
+DELETE     /photos/{photo}        destroy  photos.destroy
+
+34.
+========================================================================================================================
+=== ФАЙЛЫ И МАРШРУТЫ ПРОЕКТА
+========================================================================================================================
+
+laravel10/database/migrations/2024_05_14_204820_create_posts_table.php
+--- Миграция
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('posts', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('text');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('posts');
+    }
+};
+
+---
+
+laravel10/app/Models/Post.php
+--- Модель Post.php
+
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Post extends Model
+{
+    use HasFactory;
+
+    protected $guarded = [];
+}
+---
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+laravel10/app/Http/Controllers/PostController.php
+--- PostController
+
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Post;
+use Illuminate\Http\Request;
+
+class PostController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $posts = Post::orderBy('created_at','desc')->get();
+
+        return view('posts.index', compact(['posts']));
+    }
+    
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        return view('posts.create');
+    }
+
+    // создает новый пост и переходит на index.blade.php
+    public function store(Request $request)
+    {
+        Post::create($request->all());
+
+        return redirect()->route('posts.index');
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Post $post)
+    {
+        return view('posts.show', compact('post'));
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Post $post)
+    {
+        return view('posts.edit', compact(['post']));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    // в edit.blade.php мы передаем $post->id, следовательно в $post будет нужный для update по id пост
+    public function update(Request $request, Post $post)
+    {
+        $post->update($request->all());
+
+        return redirect()->route('posts.index');
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Post $post)
+    {
+        $post->delete();
+
+        return redirect()->route('posts.index');
+    }
+}
+
+35. 
+
+laravel10/resources/views/layouts/main.blade.php
+--- main.blade.php
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+        integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+
+    <title>Posts (файл main.blade.php)</title>
+</head>
+
+<body>
+
+    <div class="container">
+        <a href="{{ route('posts.index') }}" style="color: #3a8842">Posts main (переход на index.blade.php)</a>
+        @yield('content')
+
+    </div>
+    <!-- Optional JavaScript; choose one of the two! -->
+
+    <!-- Option 1: jQuery and Bootstrap Bundle (includes Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous">
+    </script>
+
+
+</body>
+
+</html>
+
+---
+36.
+laravel10/resources/views/posts/create.blade.php
+--- create.blade.php
+
+@extends('layouts.main')
+
+@section('content')
+        <h2>Add new post (файл create.blade.php)</h2>
+        <form method="POST" action="{{route('posts.store')}}">
+            @csrf
+            <div class="form-group">
+                <input type="text" name="name" class="form-control" id="exampleInputEmail1" aria-describedby="Post title">
+            </div>
+            <div class="form-group">
+                <textarea name="text" id="" cols="30" rows="10"></textarea>
+            </div>
+            <button type="submit" class="btn btn-outline-primary">Submit</button>
+        </form>
+@endsection
+---
+
+37.
+laravel10/resources/views/posts/edit.blade.php
+--- edit.blade.php
+
+@extends('layouts.main')
+
+@section('content')
+    <h2>Edit post (файл edit.blade.php)</h2>
+    <form method="POST" action="{{ route('posts.update', $post->id) }}">
+        @csrf
+        @method('PUT')
+        <div class="form-group">
+            <input type="text" value="{{$post['name']}}" name="name" class="form-control" id="exampleInputEmail1" aria-describedby="Post title">
+        </div>
+        <div class="form-group">
+            <textarea name="text" id="" cols="30" rows="10">{{$post['text']}}</textarea>
+        </div>
+        <button type="submit" class="btn btn-outline-primary">Save</button>
+    </form>
+@endsection
+---
+
+38.
+laravel10/resources/views/posts/index.blade.php
+--- index.blade.php
+
+@extends('layouts.main')
+
+@section('content')
+    <h2>Posts (файл index.blade.php)</h2>
+    <a href="{{ route('posts.create') }}">Add post (переход на create.blade.php)</a>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Name</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($posts as $post)
+                <tr>
+                    <td>{{ $post->id }}</td>
+                    <td><a href="{{ route('posts.show', $post->id) }}">{{ $post->name }}</a></td>
+                    <td>
+                        <a href="{{ route('posts.edit', $post->id) }}">Edit</a>
+                        <!-- Добавляем отступ -->
+                        <span style="margin-right: 10px;"></span>
+                        <form method="POST" action="{{ route('posts.destroy', $post->id) }}" style="display:inline">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-outline-danger">Delete</button>
+
+                        </form>
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endsection
+---
+
+39.
+laravel10/resources/views/posts/show.blade.php
+--- show.blade.php
+
+@extends('layouts.main')
+
+@section('content')
+        <h2>Add new post (файл show.blade.php с post id = {{$post->id}})</h2>
+
+        <h2>{{$post['name']}}</h2>
+        <article>{{$post['text']}}</article>
+
+@endsection
+
+
+40.
+laravel10/routes/web.php
+--- web.php
+
+<?php
+
+use App\Http\Controllers\PostController;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "web" middleware group. Make something great!
+|
+*/
+
+// Route::get('/', function () {
+//     return view('welcome');
+// });
+
+Route::get('/', [PostController::class, 'index']);
+Route::resource('posts', PostController::class);
+---
+
+41.
+
+42.
+
+43.
+
+43.
+
+44.
+
+45.
+
+46.
+
+47.
+
+48.
+https://laravel.com/docs/10.x/controllers
+Посмотреть маршруты командой -> php artisan route:list
+
+~/projects/laravel10-resource-CRUD/laravel10$ php artisan route:list
+
+  GET|HEAD        / ................................................................. PostController@index
+  POST            _ignition/execute-solution ignition.executeSolution › Spatie\LaravelIgnition › ExecuteS…
+  GET|HEAD        _ignition/health-check ignition.healthCheck › Spatie\LaravelIgnition › HealthCheckContr…
+  POST            _ignition/update-config ignition.updateConfig › Spatie\LaravelIgnition › UpdateConfigCo…
+  GET|HEAD        api/user ............................................................................... 
+  GET|HEAD        posts ............................................... posts.index › PostController@index
+  POST            posts ............................................... posts.store › PostController@store
+  GET|HEAD        posts/create ...................................... posts.create › PostController@create
+  GET|HEAD        posts/{post} .......................................... posts.show › PostController@show
+  PUT|PATCH       posts/{post} ...................................... posts.update › PostController@update
+  DELETE          posts/{post} .................................... posts.destroy › PostController@destroy
+  GET|HEAD        posts/{post}/edit ..................................... posts.edit › PostController@edit
+  GET|HEAD        sanctum/csrf-cookie .. sanctum.csrf-cookie › Laravel\Sanctum › CsrfCookieController@show
+
+                                                                                       Showing [13] routes
+49.
+SQL запросы для переименовывания id (например: если удалить пост 2, то id = 1, , 3, 4, 5)
+
+UPDATE `posts` SET `id` = '2' WHERE `posts`.`id` = 3;
+UPDATE `posts` SET `id` = '3' WHERE `posts`.`id` = 4;
+UPDATE `posts` SET `id` = '4' WHERE `posts`.`id` = 5;
+50.
+
+
