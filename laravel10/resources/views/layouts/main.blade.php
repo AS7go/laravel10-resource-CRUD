@@ -16,7 +16,9 @@
 <body>
 
     <div class="container">
-        <a href="{{ route('posts.index') }}" style="color: #3a8842">Posts main (переход на index.blade.php)</a>
+        <br>
+        <h2 style="color: #10761c">Laravel10, CRUD Через Resource Controllers в Docker Контейнере</h2><br>
+        <a href="{{ route('posts.index') }}">Posts main (переход на index.blade.php)</a>
         @yield('content')
 
     </div>

@@ -418,7 +418,7 @@ root@e02504415425:/var/www/html# apt install mc
 mc 
 
 19. 
-Доподготовка настройка контейнеров, конфигурации, связь с SQL. ↑
+До подготовка настройка контейнеров, конфигурации, связь с SQL. ↑
 ==================================================================================
 ↑↑↑↑↑ https://laravel.com/docs/9.x/controllers#resource-controllers ↓↓↓↓↓
 ==================================================================================
@@ -594,7 +594,7 @@ destroy(Post $post): Этот метод удаляет существующий
 если (при добавлении поста) выдаст ошибку
 Add [_token] to fillable property to allow mass assignment on [App\Models\Post].
 
-добавте в файл laravel10/app/Models/Post.php
+добавьте в файл laravel10/app/Models/Post.php
 строку protected $guarded = []; что бы можно было записывать все поля
 
 class Post extends Model
